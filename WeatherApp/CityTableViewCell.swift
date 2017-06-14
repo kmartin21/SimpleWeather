@@ -38,6 +38,14 @@ class CityTableViewCell: UITableViewCell {
         fatalError("init(coder:) has not been implemented")
     }
     
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        
+        if !loadingSpinner.isHidden {
+            loadingSpinner.startAnimating()
+        }
+    }
+    
     func createUI() {
         cellView.layer.cornerRadius = 5
         cellView.backgroundColor = UIColor.clear
@@ -51,8 +59,6 @@ class CityTableViewCell: UITableViewCell {
         temperatureLabel.font = UIFont.boldSystemFont(ofSize: 40)
         temperatureLabel.textColor = UIColor.white
         temperatureLabel.text = "70ºF"
-        
-        loadingSpinner.isHidden = true
         
         self.addConstraints()
     }
@@ -116,7 +122,6 @@ class CityTableViewCell: UITableViewCell {
     
     func startLoadingSpinner() {
         loadingSpinner.isHidden = false
-        loadingSpinner.startAnimating()
     }
     
     func stopLoadingSpinner() {
