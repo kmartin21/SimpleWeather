@@ -1,2 +1,2 @@
 # SimpleWeather
-A small and simple weather app with some smooth animations and nice colors.
+A small and simple weather app with smooth animations and flat colors.
