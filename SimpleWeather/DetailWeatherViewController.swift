@@ -71,7 +71,7 @@ class DetailWeatherViewController: UIViewController {
         detailWeatherView.getCloseButton().addTarget(self, action: #selector(closeButtonTapped), for: .touchUpInside)
         detailWeatherView.setCityLabel(text: cityWeather.getCity())
         detailWeatherView.setWindSpeedLabel(text: cityWeather.getWindSpeed())
-        detailWeatherView.setDescriptionLabel(text: cityWeather.getDescription())
+        detailWeatherView.setDescriptionLabel(text: cityWeather.getDetailDescription())
         detailWeatherView.setTemperatureLabel(text: cityWeather.getTemp())
         self.addDetailWeatherViewConstraints()
     }
