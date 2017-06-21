@@ -16,6 +16,11 @@ class WeatherLocationsViewController: UIViewController, CityWeatherDelegate {
     fileprivate var citiesDataSource: [CityWeather] = []
     private let httpCityWeather: HttpCityWeather
     fileprivate var loadingAll: Bool = false
+    private var filePath : String {
+        let manager = FileManager.default
+        let url = manager.urls(for: .documentDirectory, in: .userDomainMask).first! as NSURL
+        return url.appendingPathComponent("cityWeatherData")!.path
+    }
     
     init() {
         httpCityWeather = HttpCityWeather()
@@ -31,6 +36,11 @@ class WeatherLocationsViewController: UIViewController, CityWeatherDelegate {
         super.viewDidLoad()
         
         createUI()
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        
     }
 
     override func didReceiveMemoryWarning() {
@@ -100,15 +110,45 @@ class WeatherLocationsViewController: UIViewController, CityWeatherDelegate {
             let citySplitWord = fullCity.components(separatedBy: ",")
             let city = citySplitWord[0]
             self.citiesDataSource.append(CityWeather())
-            DispatchQueue.main.async(execute: {
-                self.tableView.reloadData()
-            })
+            self.reloadTableData()
             self.httpCityWeather.getCityWeather(city: "\(city)")
         }
     }
     
     func cityWeatherDidLoad(cityWeather: CityWeather) {
         self.citiesDataSource[citiesDataSource.count-1] = cityWeather
+        reloadTableData()
+    }
+    
+    func allCityWeatherDidLoad(allCityWeather: [CityWeather]) {
+        citiesDataSource = allCityWeather
+        reloadTableData()
+    }
+    
+    func saveData() {
+        NSKeyedArchiver.archiveRootObject(citiesDataSource, toFile: self.filePath)
+    }
+    
+    func loadData() {
+        if let cityWeatherData = NSKeyedUnarchiver.unarchiveObject(withFile: filePath) as? [CityWeather] {
+            self.citiesDataSource = cityWeatherData
+        }
+        
+        refreshData()
+    }
+    
+    func refreshData() {
+        var cities: [String] = []
+        for cityWeather in citiesDataSource {
+            cityWeather.setLoading(true)
+            cities.append(cityWeather.getCity())
+        }
+        
+        reloadTableData()
+        httpCityWeather.getAllCityWeather(cities: cities)
+    }
+    
+    func reloadTableData() {
         DispatchQueue.main.async(execute: {
             self.tableView.reloadData()
         })
