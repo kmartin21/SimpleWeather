@@ -7,17 +7,19 @@
 //
 
 import UIKit
+import RxSwift
+import RxCocoa
 
-class SearchLocationViewController: UITableViewController, UISearchResultsUpdating, UISearchBarDelegate {
-    let tableData = [String]()
-    var filteredTableData = [String]()
-    var resultSearchController = UISearchController(searchResultsController: nil)
-    var selectedCityCallback: ((String) -> Void)?
+class SearchLocationViewController: UITableViewController, UISearchBarDelegate {
+    private var searchDataSource = Variable<[String]>([])
+    private var resultSearchController = UISearchController(searchResultsController: nil)
+    private var selectedCityCallback: ((String) -> Void)?
+    private let disposeBag = DisposeBag()
+    let selectedCity = PublishSubject<String>()
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        resultSearchController.searchResultsUpdater = self
         resultSearchController.dimsBackgroundDuringPresentation = false
         resultSearchController.searchBar.placeholder = "Search by city"
         resultSearchController.searchBar.delegate = self
@@ -27,8 +29,53 @@ class SearchLocationViewController: UITableViewController, UISearchResultsUpdati
         resultSearchController.searchBar.sizeToFit()
         self.tableView.tableHeaderView = resultSearchController.searchBar
         
-        self.tableView.register(UITableViewCell.self, forCellReuseIdentifier: "Cell")
-        self.tableView.reloadData()
+        self.tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
+        //self.tableView.reloadData()
+        tableView.delegate = nil
+        tableView.dataSource = nil
+        searchDataSource.asObservable()
+            .bind(to: self.tableView.rx.items(cellIdentifier: "cell", cellType: UITableViewCell.self)) { (row, _, cell) in
+                cell.textLabel?.text = self.searchDataSource.value[row]
+            }
+            .addDisposableTo(disposeBag)
+        
+        tableView.rx.modelSelected(String.self)
+        .subscribe(onNext: { cityName in
+            self.selectedCity.onNext(cityName)
+        }).addDisposableTo(disposeBag)
+        
+        
+        
+        let searchBar = resultSearchController.searchBar
+        searchBar
+            .rx.text
+            .orEmpty
+            .debounce(0.2, scheduler: MainScheduler.instance)
+            .distinctUntilChanged()
+            .subscribe(onNext: { city in
+                guard !city.isEmpty else {
+                    self.searchDataSource.value.removeAll()
+                    return
+                }
+                
+                let cityURLString: String = city.addingPercentEncoding(withAllowedCharacters: CharacterSet.urlQueryAllowed)!
+                
+                let cityURL: String = "https://maps.googleapis.com/maps/api/place/autocomplete/json?input=\(cityURLString)&types=(cities)&language=en&key=AIzaSyDHSl4JCpz1YOQCoSAzy-MKj1F74s0ST6g"
+                
+                let url = URL(string: cityURL)
+                let task = URLSession.shared.dataTask(with: url!, completionHandler: { (data, response, error) in
+                    do {
+                        if let json = try JSONSerialization.jsonObject(with: data!, options: []) as? NSDictionary {
+                            self.parseJSON(dict: json)
+                        }
+                    } catch let error as NSError {
+                        print(error.localizedDescription)
+                    }
+                })
+                
+                task.resume()
+            }).addDisposableTo(disposeBag)
+        
     }
     
     override func didReceiveMemoryWarning() {
@@ -47,60 +94,14 @@ class SearchLocationViewController: UITableViewController, UISearchResultsUpdati
         self.dismiss(animated: true, completion: nil)
     }
     
-    override func numberOfSections(in tableView: UITableView) -> Int {
-        return 1
-    }
-    
-    
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return self.filteredTableData.count
-    }
-    
-    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        guard tableView.numberOfRows(inSection: 0) > 0 else {
-            return
-        }
-        selectedCityCallback?(filteredTableData[indexPath.row])
-        self.dismiss(animated: true, completion: nil)
-        self.dismiss(animated: true, completion: nil)
-    }
-    
-    
-    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath) 
-        cell.textLabel?.text = filteredTableData[indexPath.row]
-            
-        return cell
-    }
-    
-    
-    func updateSearchResults(for searchController: UISearchController) {
-        let city = searchController.searchBar.text!
-        guard !city.isEmpty else {
-            filteredTableData.removeAll()
-            DispatchQueue.main.async(execute: {
-                self.tableView.reloadData()
-            })
-            return
-        }
-        
-        let cityURLString: String = city.addingPercentEncoding(withAllowedCharacters: CharacterSet.urlQueryAllowed)!
-
-        let cityURL: String = "https://maps.googleapis.com/maps/api/place/autocomplete/json?input=\(cityURLString)&types=(cities)&language=en&key=AIzaSyDHSl4JCpz1YOQCoSAzy-MKj1F74s0ST6g"
-        
-        let url = URL(string: cityURL)
-        let task = URLSession.shared.dataTask(with: url!, completionHandler: { (data, response, error) in
-            do {
-                if let json = try JSONSerialization.jsonObject(with: data!, options: []) as? NSDictionary {
-                    self.parseJSON(dict: json)
-                }
-            } catch let error as NSError {
-                print(error.localizedDescription)
-            }
-        })
-        
-        task.resume()
-    }
+//    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+//        guard tableView.numberOfRows(inSection: 0) > 0 else {
+//            return
+//        }
+//        selectedCityCallback?(searchDataSource[indexPath.row])
+//        self.dismiss(animated: true, completion: nil)
+//        self.dismiss(animated: true, completion: nil)
+//    }
     
     func parseJSON(dict : NSDictionary) {
         let cityPredictions: [[String: Any]] = dict.object(forKey: "predictions") as! [[String: Any]]
@@ -110,10 +111,7 @@ class SearchLocationViewController: UITableViewController, UISearchResultsUpdati
                 return prediction["description"]! as! String
             }
             
-            filteredTableData = cities
-            DispatchQueue.main.async(execute: {
-                self.tableView.reloadData()
-            })
+            searchDataSource.value = cities
         }
     }
     
