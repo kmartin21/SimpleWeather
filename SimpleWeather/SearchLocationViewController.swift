@@ -51,8 +51,9 @@ class SearchLocationViewController: UITableViewController, UISearchBarDelegate {
     func setupBindings() {
         
         tableView.rx.modelSelected(String.self)
-            .subscribe(onNext: { cityName in
-                self.selectedCity.onNext(cityName)
+            .subscribe(onNext: { [weak self] cityName in
+                guard let strongSelf = self else { return }
+                strongSelf.selectedCity.onNext(cityName)
             }).addDisposableTo(disposeBag)
 
         let searchBarText = resultSearchController.searchBar
@@ -69,8 +70,7 @@ class SearchLocationViewController: UITableViewController, UISearchBarDelegate {
                 cell.textLabel?.text = city
                 
                 return cell
-            }
-            .addDisposableTo(disposeBag)
+            }.addDisposableTo(disposeBag)
     }
     
     func searchBarCancelButtonClicked(_ searchBar: UISearchBar) {

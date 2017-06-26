@@ -7,6 +7,8 @@
 //
 
 import UIKit
+import RxSwift
+import RxCocoa
 
 class DetailWeatherViewController: UIViewController {
 
@@ -15,6 +17,7 @@ class DetailWeatherViewController: UIViewController {
     private let padding: CGFloat
     private let detailWeatherView: DetailWeatherView
     private let cityWeather: CityWeather
+    private let disposeBag: DisposeBag
     
     init(accentColor: UIColor, viewStartingPoint: CGRect, cityWeather: CityWeather, padding: CGFloat) {
         accentColorView = UIView(frame: .zero)
@@ -22,6 +25,7 @@ class DetailWeatherViewController: UIViewController {
         self.viewStartingPoint = viewStartingPoint
         self.cityWeather = cityWeather
         self.padding = padding
+        self.disposeBag = DisposeBag()
         super.init(nibName: nil, bundle: nil)
         accentColorView.backgroundColor = accentColor
     }
@@ -35,6 +39,7 @@ class DetailWeatherViewController: UIViewController {
         view.backgroundColor = UIColor.white
         createAnimatedViewUI()
         createDetailWeatherViewUI()
+        setupBindings()
     }
     
     override func viewDidAppear(_ animated: Bool) {
@@ -68,7 +73,6 @@ class DetailWeatherViewController: UIViewController {
     
     func createDetailWeatherViewUI() {
         self.view.addSubview(detailWeatherView)
-        detailWeatherView.getCloseButton().addTarget(self, action: #selector(closeButtonTapped), for: .touchUpInside)
         detailWeatherView.setCityLabel(text: cityWeather.getCity())
         detailWeatherView.setWindSpeedLabel(text: cityWeather.getWindSpeed())
         detailWeatherView.setDescriptionLabel(text: cityWeather.getDetailDescription())
@@ -100,8 +104,11 @@ class DetailWeatherViewController: UIViewController {
         }, completion: nil)
     }
     
-    func closeButtonTapped() {
-        self.dismiss(animated: true, completion: nil)
+    func setupBindings() {
+        detailWeatherView.getCloseButton().rx.tap.subscribe(onNext: { [weak self] in
+            guard let strongSelf = self else { return }
+            strongSelf.dismiss(animated: true, completion: nil)
+        }).addDisposableTo(self.disposeBag)
     }
 
     override var prefersStatusBarHidden: Bool {

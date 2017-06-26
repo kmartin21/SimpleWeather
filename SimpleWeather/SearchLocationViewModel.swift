@@ -29,7 +29,6 @@ struct SearchLocationViewModel {
                 let cityNameEncoded = cityName.addingPercentEncoding(withAllowedCharacters: CharacterSet.urlQueryAllowed)!
                 return RxAlamofire
                     .requestJSON(.get, "https://maps.googleapis.com/maps/api/place/autocomplete/json?input=\(cityNameEncoded)&types=(cities)&language=en&key=AIzaSyDHSl4JCpz1YOQCoSAzy-MKj1F74s0ST6g")
-                    .debug()
                     .catchError { _ in
                         return Observable.never()
                 }

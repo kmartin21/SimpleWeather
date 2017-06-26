@@ -10,14 +10,13 @@ import UIKit
 import RxSwift
 import RxCocoa
 
-class WeatherLocationsViewController: UIViewController, CityWeatherDelegate, UITableViewDelegate {
+class WeatherLocationsViewController: UIViewController, UITableViewDelegate {
 
     private let locationsLabel = UILabel(frame: .zero)
     private let addLocationButton = UIButton(frame: .zero)
     private var tableView: UITableView!
-    fileprivate var citiesDataSource: Variable<[CityWeather]> = Variable([])
+    private var citiesDataSource: Variable<[CityWeather]> = Variable([])
     private let disposeBag = DisposeBag()
-    private let httpCityWeather: HttpCityWeather
     fileprivate var loadingAll: Bool = false
     private var filePath : String {
         let manager = FileManager.default
@@ -26,83 +25,11 @@ class WeatherLocationsViewController: UIViewController, CityWeatherDelegate, UIT
     }
     private let cellColors = [UIColor.flatRed(), UIColor.flatOrange(), UIColor.flatGreen(), UIColor.flatBlue()]
     
-    init() {
-        httpCityWeather = HttpCityWeather()
-        super.init(nibName: nil, bundle: nil)
-        httpCityWeather.delegate = self
-    }
-    
-    required init?(coder aDecoder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-    
     override func viewDidLoad() {
         super.viewDidLoad()
-        
+
         createUI()
-        citiesDataSource.asObservable()
-            .bind(to: tableView.rx.items(cellIdentifier: "cell", cellType: CityTableViewCell.self)) { (row, cityWeather, cell) in
-                let cellColor = self.cellColors[row % self.cellColors.count]
-        
-                cell.selectionStyle = .none
-                cell.setBackgroundColor(color: cellColor)
-                cell.setTitleLabel(title: cityWeather.getCity())
-                cell.setTemperatureLabel(temp: cityWeather.getTemp())
-                cell.setWeatherImage(condition: cityWeather.getCondition())
-        
-                if cityWeather.isLoading() {
-                    cell.startLoadingSpinner()
-                } else {
-                    cell.stopLoadingSpinner()
-                }
-            }
-            .disposed(by: disposeBag)
-        
-        tableView.rx.itemSelected
-            .subscribe(onNext: { indexPath in
-                let cell = self.tableView.cellForRow(at: indexPath) as! CityTableViewCell
-                let cellFrame = self.tableView.cellForRow(at: indexPath)!.frame
-                let relativeY = cellFrame.origin.y - self.tableView.contentOffset.y
-                let startRect = CGRect(x: cellFrame.origin.x, y: relativeY, width: cellFrame.width, height: cellFrame.height)
-                let accentColor = cell.getCellColor()
-        
-                let detailWeatherViewController = DetailWeatherViewController(accentColor: accentColor, viewStartingPoint: startRect, cityWeather: self.citiesDataSource.value[indexPath.row], padding: self.tableView.frame.minY)
-                DispatchQueue.main.async {
-                    self.present(detailWeatherViewController, animated: false, completion: nil)
-                }
-            }).addDisposableTo(disposeBag)
-        
-        tableView.rx.itemDeleted
-            .subscribe()
-            .disposed(by: disposeBag)
-        
-        addLocationButton.rx.tap.subscribe(onNext: {
-            let locationPickerVC = SearchLocationViewController()
-            
-            locationPickerVC.selectedCity.subscribe(onNext: { fullCity in
-                let citySplitWord = fullCity.components(separatedBy: ",")
-                let city = citySplitWord[0]
-                self.citiesDataSource.value.append(CityWeather())
-                locationPickerVC.dismiss(animated: true, completion: nil)
-                locationPickerVC.dismiss(animated: true, completion: nil)
-            }).addDisposableTo(self.disposeBag)
-            
-            UIView.animate(withDuration: 0.5) { () -> Void in
-                self.addLocationButton.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi))
-            }
-            UIView.animate(withDuration: 0.5, animations: {
-                self.addLocationButton.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi * 2))
-            }) { _ in
-                DispatchQueue.main.async {
-                    self.present(locationPickerVC, animated: true, completion: nil)
-                }
-            }
-        }).addDisposableTo(disposeBag)
-    }
-    
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        
+        setupBindings()
     }
 
     override func didReceiveMemoryWarning() {
@@ -128,15 +55,89 @@ class WeatherLocationsViewController: UIViewController, CityWeatherDelegate, UIT
         tableView.register(CityTableViewCell.self, forCellReuseIdentifier: "cell")
         tableView.backgroundColor = UIColor.clear
         self.view.addSubview(tableView)
-        tableView.rx.setDelegate(self).addDisposableTo(disposeBag)
         self.addConstraints()
+    }
+    
+    func setupBindings() {
+        tableView.rx.setDelegate(self)
+            .addDisposableTo(disposeBag)
+        
+        citiesDataSource.asObservable()
+            .bind(to: tableView.rx.items(cellIdentifier: "cell", cellType: CityTableViewCell.self)) { [weak self] (row, cityWeather, cell) in
+                
+                guard let strongSelf = self else { return }
+                
+                let cellColor = strongSelf.cellColors[row % strongSelf.cellColors.count]
+                
+                cell.selectionStyle = .none
+                cell.setBackgroundColor(color: cellColor)
+                cell.setTitleLabel(title: cityWeather.getCity())
+                cell.setTemperatureLabel(temp: cityWeather.getTemp())
+                cell.setWeatherImage(condition: cityWeather.getCondition())
+                
+                if cityWeather.isLoading() {
+                    cell.startLoadingSpinner()
+                } else {
+                    cell.stopLoadingSpinner()
+                }
+            }.addDisposableTo(disposeBag)
+        
+        tableView.rx.itemSelected
+            .subscribe(onNext: { [weak self] indexPath in
+                guard let strongSelf = self else { return }
+                
+                let cell = strongSelf.tableView.cellForRow(at: indexPath) as! CityTableViewCell
+                let cellFrame = strongSelf.tableView.cellForRow(at: indexPath)!.frame
+                let relativeY = cellFrame.origin.y - strongSelf.tableView.contentOffset.y
+                let startRect = CGRect(x: cellFrame.origin.x, y: relativeY, width: cellFrame.width, height: cellFrame.height)
+                let accentColor = cell.getCellColor()
+                
+                let detailWeatherViewController = DetailWeatherViewController(accentColor: accentColor, viewStartingPoint: startRect, cityWeather: strongSelf.citiesDataSource.value[indexPath.row], padding: strongSelf.tableView.frame.minY)
+                DispatchQueue.main.async {
+                    strongSelf.present(detailWeatherViewController, animated: false, completion: nil)
+                }
+            }).addDisposableTo(disposeBag)
+        
+        tableView.rx.itemDeleted
+            .subscribe()
+            .addDisposableTo(disposeBag)
+        
+        addLocationButton.rx.tap.subscribe(onNext: { [weak self] in
+            guard let strongSelf = self else { return }
+            
+            let locationPickerVC = SearchLocationViewController()
+            
+            locationPickerVC.selectedCity.subscribe(onNext: { fullCity in
+                let citySplitWord = fullCity.components(separatedBy: ",")
+                let city = citySplitWord[0]
+                strongSelf.citiesDataSource.value.append(CityWeather())
+                locationPickerVC.dismiss(animated: true, completion: nil)
+                locationPickerVC.dismiss(animated: true, completion: nil)
+                
+                var weatherLocationsViewModel = WeatherLocationsViewModel(observableLatestCityName: Observable.just(city), observableAllCities: nil)
+                weatherLocationsViewModel.latestCityWeather
+                    .subscribe(onNext: { (cityWeather) in
+                        strongSelf.citiesDataSource.value[strongSelf.citiesDataSource.value.count - 1] = cityWeather
+                    }).addDisposableTo(strongSelf.disposeBag)
+                
+            }).addDisposableTo(strongSelf.disposeBag)
+            
+            UIView.animate(withDuration: 0.5) { () -> Void in
+                strongSelf.addLocationButton.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi))
+            }
+            UIView.animate(withDuration: 0.5, animations: {
+                strongSelf.addLocationButton.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi * 2))
+            }) { _ in
+                DispatchQueue.main.async {
+                    strongSelf.present(locationPickerVC, animated: true, completion: nil)
+                }
+            }
+        }).addDisposableTo(disposeBag)
     }
     
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         return tableView.frame.width / 2.5
     }
-    
-    
     
     func tableView(_ tableView: UITableView, editActionsForRowAt indexPath: IndexPath) -> [UITableViewRowAction]? {
         UIButton.appearance().setTitleColor(UIColor.red, for: UIControlState.normal)
@@ -168,16 +169,6 @@ class WeatherLocationsViewController: UIViewController, CityWeatherDelegate, UIT
         tableView.topAnchor.constraint(equalTo: addLocationButton.bottomAnchor).isActive = true
     }
     
-    func cityWeatherDidLoad(cityWeather: CityWeather) {
-        //self.citiesDataSource[citiesDataSource.count-1] = cityWeather
-        reloadTableData()
-    }
-    
-    func allCityWeatherDidLoad(allCityWeather: [CityWeather]) {
-        //citiesDataSource = allCityWeather
-        reloadTableData()
-    }
-    
     func saveData() {
         NSKeyedArchiver.archiveRootObject(citiesDataSource.value, toFile: self.filePath)
     }
@@ -186,26 +177,26 @@ class WeatherLocationsViewController: UIViewController, CityWeatherDelegate, UIT
         if let cityWeatherData = NSKeyedUnarchiver.unarchiveObject(withFile: filePath) as? [CityWeather] {
             self.citiesDataSource.value = cityWeatherData
         }
-        
-        //refreshData()
+        refreshData()
     }
     
     func refreshData() {
-        //var cities: [String] = []
-//        for cityWeather in citiesDataSource {
-//            cityWeather.setLoading(true)
-//            cities.append(cityWeather.getCity())
-//        }
+        var cities: [String] = []
+        for cityWeather in citiesDataSource.value {
+            cityWeather.setLoading(true)
+            cities.append(cityWeather.getCity())
+        }
         
-        //reloadTableData()
-        //httpCityWeather.getAllCityWeather(cities: cities)
+        var weatherLocationsViewModel = WeatherLocationsViewModel(observableLatestCityName: nil, observableAllCities: Observable.just(cities))
+        
+        weatherLocationsViewModel.allCityWeather
+            .subscribe(onNext: { [weak self] (allCityWeather) in
+                guard let strongSelf = self else { return }
+                
+                strongSelf.citiesDataSource.value = allCityWeather
+            }).addDisposableTo(disposeBag)
     }
     
-    func reloadTableData() {
-        DispatchQueue.main.async(execute: {
-            self.tableView.reloadData()
-        })
-    }
     
     override var prefersStatusBarHidden: Bool {
         return true

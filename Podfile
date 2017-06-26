@@ -10,6 +10,7 @@ target 'SimpleWeather' do
   pod 'RxCocoa'  
   pod 'RxAlamofire'  
   pod 'SwiftyJSON'
+  pod 'RxDataSources', '~> 1.0'  
 
   target 'SimpleWeatherTests' do
     inherit! :search_paths
