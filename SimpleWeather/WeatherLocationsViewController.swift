@@ -15,7 +15,7 @@ class WeatherLocationsViewController: UIViewController, CityWeatherDelegate, UIT
     private let locationsLabel = UILabel(frame: .zero)
     private let addLocationButton = UIButton(frame: .zero)
     private var tableView: UITableView!
-    fileprivate var citiesDataSource: Variable<[CityWeather]> = Variable([CityWeather(temperature: "70", city: "albany", condition: "clear", detailDescription: "clear", windSpeed: "70mph")])
+    fileprivate var citiesDataSource: Variable<[CityWeather]> = Variable([])
     private let disposeBag = DisposeBag()
     private let httpCityWeather: HttpCityWeather
     fileprivate var loadingAll: Bool = false
@@ -82,7 +82,8 @@ class WeatherLocationsViewController: UIViewController, CityWeatherDelegate, UIT
             locationPickerVC.selectedCity.subscribe(onNext: { fullCity in
                 let citySplitWord = fullCity.components(separatedBy: ",")
                 let city = citySplitWord[0]
-                self.citiesDataSource.value.append(CityWeather(temperature: "", city: city, condition: "", detailDescription: "", windSpeed: ""))
+                self.citiesDataSource.value.append(CityWeather())
+                locationPickerVC.dismiss(animated: true, completion: nil)
                 locationPickerVC.dismiss(animated: true, completion: nil)
             }).addDisposableTo(self.disposeBag)
             
@@ -183,8 +184,7 @@ class WeatherLocationsViewController: UIViewController, CityWeatherDelegate, UIT
     
     func loadData() {
         if let cityWeatherData = NSKeyedUnarchiver.unarchiveObject(withFile: filePath) as? [CityWeather] {
-            let cityWeatherDataVariable = Variable<[CityWeather]>(cityWeatherData)
-            self.citiesDataSource = cityWeatherDataVariable
+            self.citiesDataSource.value = cityWeatherData
         }
         
         //refreshData()

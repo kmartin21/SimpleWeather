@@ -8,6 +8,8 @@ target 'SimpleWeather' do
   # Pods for SimpleWeather
   pod 'RxSwift'
   pod 'RxCocoa'  
+  pod 'RxAlamofire'  
+  pod 'SwiftyJSON'
 
   target 'SimpleWeatherTests' do
     inherit! :search_paths
